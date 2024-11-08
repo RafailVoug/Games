@@ -1,0 +1,223 @@
+import tkinter as tk
+import random
+
+class Player:
+    def __init__(self, name, role="Πολίτης"):
+        self.name = name
+        self.role = role
+        self.alive = True
+        self.has_ability = True
+
+class Game:
+    def __init__(self, players):
+        self.players = players
+        self.special_roles = ['Φανερός Δολοφόνος', 'Κρυφός Δολοφόνος', 'Γιατρός', 'Αστυνομικός',
+                              'Αλεξίσφαιρο', 'Τρέλα', 'Ερωτευμένος', 'Καμικάζι', 'Θείος Παράνομος',
+                              'Έλληνας', 'Αλβανός']
+        self.assign_roles()
+
+    def assign_roles(self):
+        roles = ['Πολίτης'] * (len(self.players) - len(self.special_roles))
+        roles += self.special_roles
+        random.shuffle(roles)
+        for player, role in zip(self.players, roles):
+            player.role = role
+        print("Οι ρόλοι έχουν αποδοθεί!")
+
+    def start_game(self, game_window):
+        self.game_window = game_window
+        self.current_phase = "night"
+        self.show_game_window()
+    
+    def show_game_window(self):
+        self.clear_game_window()
+
+        if self.current_phase == "night":
+            tk.Label(self.game_window, text="Νύχτα", font=("Arial", 24)).pack(pady=20)
+            for player in self.players:
+                if player.alive:
+                    tk.Button(self.game_window, text=f"{player.name} - Δράση", command=lambda p=player: self.night_action(p)).pack(pady=5)
+            tk.Button(self.game_window, text="Εναλλαγή σε Μέρα", command=self.change_to_day).pack(pady=20)
+        else:
+            tk.Label(self.game_window, text="Μέρα", font=("Arial", 24)).pack(pady=20)
+            for player in self.players:
+                if player.alive:
+                    tk.Button(self.game_window, text=f"Ψήφος για {player.name}", command=lambda p=player: self.vote(p)).pack(pady=5)
+            tk.Button(self.game_window, text="Εναλλαγή σε Νύχτα", command=self.change_to_night).pack(pady=20)
+    
+    def clear_game_window(self):
+        for widget in self.game_window.winfo_children():
+            widget.destroy()
+
+    def change_to_day(self):
+        self.current_phase = "day"
+        self.show_game_window()
+
+    def change_to_night(self):
+        self.current_phase = "night"
+        self.show_game_window()
+
+    def night_action(self, player):
+        action_window = tk.Toplevel(self.game_window)
+        action_window.title("Δράσεις Νύχτας")
+        
+        if player.role == 'Θείος Παράνομος':
+            tk.Button(action_window, text="Ακύρωση Δολοφονίας", command=lambda: self.cancel_kill(action_window)).pack(pady=5)
+            tk.Button(action_window, text="Ακύρωση Ψηφοφορίας", command=lambda: self.cancel_vote(action_window)).pack(pady=5)
+        elif player.role == 'Αλβανός':
+            self.albanian_action(player, action_window)
+        elif player.role == 'Καμικάζι':
+            tk.Button(action_window, text="Δολοφονία", command=lambda: self.perform_kamikaze_action(player, action_window)).pack(pady=5)
+
+    def perform_kamikaze_action(self, player, action_window):
+        target = self.choose_target("Καμικάζι", player)
+        if target and target.alive:
+            print(f"{player.name} χρησιμοποιεί την ικανότητα Καμικάζι κατά του {target.name}.")
+            target.alive = False
+            action_window.destroy()
+            self.check_game_status()
+        else:
+            print("Δεν υπάρχει έγκυρος στόχος για τον Καμικάζι.")
+
+    def cancel_kill(self, action_window):
+        print("Ακύρωση Δολοφονίας από τον Θείο Παράνομο.")
+        action_window.destroy()
+
+    def cancel_vote(self, action_window):
+        print("Ακύρωση Ψηφοφορίας από τον Θείο Παράνομο.")
+        action_window.destroy()
+
+    def albanian_action(self, player, action_window):
+        tk.Label(action_window, text="Επιλέξτε παίκτη για αντιγραφή ρόλου:").pack(pady=10)
+        for target in self.players:
+            if target.alive and target != player:
+                tk.Button(action_window, text=f"Αντιγραφή Ρόλου: {target.name}", command=lambda t=target: self.perform_albanian_action(player, t, action_window)).pack(pady=5)
+
+    def perform_albanian_action(self, player, target, action_window):
+        print(f"{player.name} αντέγραψε τον ρόλο του {target.name}.")
+        player.role = target.role
+        target.role = "Πολίτης"
+        action_window.destroy()
+        self.show_game_window()
+
+    def vote(self, player):
+        tk.Label(self.game_window, text=f"Ψήφος για {player.name}").pack(pady=10)
+        # Θα μπορούσε να γίνει πιο σύνθετη ψήφος, αλλά για απλότητα προστέθηκε απλώς ένα μήνυμα
+
+    def choose_target(self, role_name, player):
+        living_players = [p for p in self.players if p.alive and p != player]
+        return random.choice(living_players) if living_players else None
+
+    def check_game_status(self):
+        alive_players = [p for p in self.players if p.alive]
+        if len(alive_players) <= 1:
+            self.end_game()
+
+    def end_game(self):
+        self.clear_game_window()
+        remaining_roles = {player.role for player in self.players if player.alive}
+        if 'Φανερός Δολοφόνος' in remaining_roles or 'Κρυφός Δολοφόνος' in remaining_roles:
+            message = "Οι Κακοί Νίκησαν"
+        elif 'Τρέλα' in remaining_roles:
+            message = "Η Τρέλα Νίκησε"
+        elif 'Έλληνας' in remaining_roles:
+            message = "Ο Έλληνας Νίκησε"
+        else:
+            message = "Οι Καλοί Νίκησαν"
+
+        tk.Label(self.game_window, text=message, font=("Arial", 24)).pack(pady=20)
+        tk.Button(self.game_window, text="Παίξτε Ξανά", command=self.restart_game).pack(pady=20)
+
+    def restart_game(self):
+        self.clear_game_window()
+        main()  # Επανεκκίνηση του παιχνιδιού
+
+def main():
+    def on_play_button():
+        menu_window.destroy()
+        setup_window = tk.Tk()
+        setup_window.title("Ρυθμίσεις Παιχνιδιού")
+
+        tk.Label(setup_window, text="Αριθμός παικτών:").grid(row=0, column=0)
+        tk.Label(setup_window, textvariable=num_players_var).grid(row=0, column=1)
+
+        def increase_players():
+            current_players = int(num_players_var.get())
+            if current_players < 1000:
+                num_players_var.set(current_players + 1)
+                update_entries()
+
+        def decrease_players():
+            current_players = int(num_players_var.get())
+            if current_players > 1:
+                num_players_var.set(current_players - 1)
+                update_entries()
+
+        tk.Button(setup_window, text="+", command=increase_players).grid(row=0, column=2)
+        tk.Button(setup_window, text="-", command=decrease_players).grid(row=0, column=3)
+
+        tk.Label(setup_window, text="Ονόματα παικτών:").grid(row=1, column=0)
+        for i in range(1000):
+            entry = tk.Entry(setup_window)
+            name_entries.append(entry)
+            button = tk.Button(setup_window, text=f"Εμφάνιση Ρόλου {i+1}")
+            role_buttons.append(button)
+            label = tk.Label(setup_window, text="")
+            role_labels.append(label)
+
+        update_entries()
+
+        for i, entry in enumerate(name_entries):
+            reveal_role_button = role_buttons[i]
+            reveal_role_label = role_labels[i]
+            reveal_role_button.config(command=lambda i=i: show_role(i, reveal_role_button, reveal_role_label))
+
+        start_button = tk.Button(setup_window, text="Ξεκινήστε το παιχνίδι", command=lambda: start_game(setup_window))
+        start_button.grid(row=1003, column=0, columnspan=2, pady=10)
+
+        setup_window.mainloop()
+
+    def update_entries():
+        num_players = int(num_players_var.get())
+        for i in range(1000):
+            if i < num_players:
+                name_entries[i].grid(row=i + 2, column=0, columnspan=2)
+                role_buttons[i].grid(row=i + 2, column=2)
+                role_labels[i].grid(row=i + 2, column=3)
+            else:
+                name_entries[i].grid_forget()
+                role_buttons[i].grid_forget()
+                role_labels[i].grid_forget()
+
+    def show_role(index, button, label):
+        player_role = players[index].role
+        label.config(text=f"Ο ρόλος σου είναι: {player_role}")
+        button.after(5000, lambda: label.config(text=""))  # Εμφάνιση ρόλου για 5 δευτερόλεπτα
+
+    def start_game(setup_window):
+        num_players = int(num_players_var.get())
+        names = [entry.get() for entry in name_entries[:num_players]]
+        global players
+        players = [Player(name) for name in names]
+        game = Game(players)
+        setup_window.destroy()
+        game_window = tk.Tk()
+        game_window.title("Φάσεις Παιχνιδιού")
+        game.start_game(game_window)
+        game_window.mainloop()
+
+    menu_window = tk.Tk()
+    menu_window.title("Καλωσορίσατε στο Παλέρμο")
+
+    num_players_var = tk.StringVar(value="1")
+    name_entries = []
+    role_buttons = []
+    role_labels = []
+
+    play_button = tk.Button(menu_window, text="ΠΑΙΞΕ", font=("Arial", 24), command=on_play_button)
+    play_button.pack(pady=20)
+
+    menu_window.mainloop()
+
+if __name__ == "__main__":
+    main()
