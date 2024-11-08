@@ -101,7 +101,6 @@ class Game:
 
     def vote(self, player):
         tk.Label(self.game_window, text=f"Ψήφος για {player.name}").pack(pady=10)
-        # Θα μπορούσε να γίνει πιο σύνθετη ψήφος, αλλά για απλότητα προστέθηκε απλώς ένα μήνυμα
 
     def choose_target(self, role_name, player):
         living_players = [p for p in self.players if p.alive and p != player]
@@ -129,7 +128,7 @@ class Game:
 
     def restart_game(self):
         self.clear_game_window()
-        main()  # Επανεκκίνηση του παιχνιδιού
+        main()
 
 class RoleDisplayWindow:
     def __init__(self, root, players):
@@ -183,15 +182,17 @@ class RoleDisplayWindow:
         self.window.destroy()
         game_window = tk.Tk()
         game_window.title("Φάσεις Παιχνιδιού")
+        game_window.state('zoomed')  # Μεγιστοποίηση του παραθύρου
         game = Game(self.players)
         game.start_game(game_window)
         game_window.mainloop()
 
 def main():
     def on_play_button():
-        menu_window.destroy()
+        menu_window.withdraw()  # Απόκρυψη του κύριου παραθύρου
         setup_window = tk.Tk()
         setup_window.title("Ρυθμίσεις Παιχνιδιού")
+        setup_window.state('zoomed')  # Μεγιστοποίηση του παραθύρου
 
         tk.Label(setup_window, text="Αριθμός παικτών:").grid(row=0, column=0)
         tk.Label(setup_window, textvariable=num_players_var).grid(row=0, column=1)
@@ -241,6 +242,7 @@ def main():
 
     menu_window = tk.Tk()
     menu_window.title("Καλωσορίσατε στο Παλέρμο")
+    menu_window.state('zoomed')  # Μεγιστοποίηση του παραθύρου
 
     num_players_var = tk.StringVar(value="1")
     name_entries = []
