@@ -6,7 +6,6 @@ class Player:
         self.name = name
         self.role = role
         self.alive = True
-        self.has_ability = True
 
 class Game:
     def __init__(self, players):
@@ -132,6 +131,62 @@ class Game:
         self.clear_game_window()
         main()  # Επανεκκίνηση του παιχνιδιού
 
+class RoleDisplayWindow:
+    def __init__(self, root, players):
+        self.players = players
+        self.root = root
+        self.current_index = 0
+        self.create_widgets()
+
+    def create_widgets(self):
+        self.window = tk.Toplevel(self.root)
+        self.window.title("Εμφάνιση Ρόλων")
+
+        self.player_label = tk.Label(self.window, text="")
+        self.player_label.pack(pady=10)
+
+        self.role_display = tk.Label(self.window, text="", font=("Arial", 16))
+        self.role_display.pack(pady=10)
+
+        self.show_role_button = tk.Button(self.window, text="Εμφάνιση Ρόλου", command=self.show_role)
+        self.show_role_button.pack(pady=5)
+
+        self.next_button = tk.Button(self.window, text="Επόμενος Παίκτης", command=self.next_player)
+        self.next_button.pack(pady=5)
+
+        self.start_game_button = tk.Button(self.window, text="Ξεκινήστε το Παιχνίδι", command=self.start_game, state=tk.DISABLED)
+        self.start_game_button.pack(pady=20)
+
+        self.update_display()
+
+    def update_display(self):
+        if self.players:
+            player = self.players[self.current_index]
+            self.player_label.config(text=f"Παίκτης: {player.name}")
+            self.role_display.config(text="")
+        else:
+            self.player_label.config(text="Δεν υπάρχουν παίκτες.")
+
+    def show_role(self):
+        if self.players:
+            player = self.players[self.current_index]
+            self.role_display.config(text=f"Ο ρόλος σου είναι: {player.role}")
+            self.role_display.after(5000, lambda: self.role_display.config(text=""))
+
+    def next_player(self):
+        self.current_index += 1
+        if self.current_index >= len(self.players):
+            self.start_game_button.config(state=tk.NORMAL)
+        self.update_display()
+
+    def start_game(self):
+        self.window.destroy()
+        game_window = tk.Tk()
+        game_window.title("Φάσεις Παιχνιδιού")
+        game = Game(self.players)
+        game.start_game(game_window)
+        game_window.mainloop()
+
 def main():
     def on_play_button():
         menu_window.destroy()
@@ -160,17 +215,8 @@ def main():
         for i in range(1000):
             entry = tk.Entry(setup_window)
             name_entries.append(entry)
-            button = tk.Button(setup_window, text=f"Εμφάνιση Ρόλου {i+1}")
-            role_buttons.append(button)
-            label = tk.Label(setup_window, text="")
-            role_labels.append(label)
 
         update_entries()
-
-        for i, entry in enumerate(name_entries):
-            reveal_role_button = role_buttons[i]
-            reveal_role_label = role_labels[i]
-            reveal_role_button.config(command=lambda i=i: show_role(i, reveal_role_button, reveal_role_label))
 
         start_button = tk.Button(setup_window, text="Ξεκινήστε το παιχνίδι", command=lambda: start_game(setup_window))
         start_button.grid(row=1003, column=0, columnspan=2, pady=10)
@@ -182,37 +228,22 @@ def main():
         for i in range(1000):
             if i < num_players:
                 name_entries[i].grid(row=i + 2, column=0, columnspan=2)
-                role_buttons[i].grid(row=i + 2, column=2)
-                role_labels[i].grid(row=i + 2, column=3)
             else:
                 name_entries[i].grid_forget()
-                role_buttons[i].grid_forget()
-                role_labels[i].grid_forget()
-
-    def show_role(index, button, label):
-        player_role = players[index].role
-        label.config(text=f"Ο ρόλος σου είναι: {player_role}")
-        button.after(5000, lambda: label.config(text=""))  # Εμφάνιση ρόλου για 5 δευτερόλεπτα
 
     def start_game(setup_window):
         num_players = int(num_players_var.get())
         names = [entry.get() for entry in name_entries[:num_players]]
         global players
         players = [Player(name) for name in names]
-        game = Game(players)
         setup_window.destroy()
-        game_window = tk.Tk()
-        game_window.title("Φάσεις Παιχνιδιού")
-        game.start_game(game_window)
-        game_window.mainloop()
+        role_display = RoleDisplayWindow(tk.Tk(), players)
 
     menu_window = tk.Tk()
     menu_window.title("Καλωσορίσατε στο Παλέρμο")
 
     num_players_var = tk.StringVar(value="1")
     name_entries = []
-    role_buttons = []
-    role_labels = []
 
     play_button = tk.Button(menu_window, text="ΠΑΙΞΕ", font=("Arial", 24), command=on_play_button)
     play_button.pack(pady=20)
