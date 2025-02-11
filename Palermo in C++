@@ -1,0 +1,164 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <ctime>
+#include <cstdlib>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+class Player {
+public:
+    std::string name;
+    std::string role;
+    bool alive;
+
+    Player(std::string name, std::string role = "Πολίτης") : name(name), role(role), alive(true) {}
+};
+
+class Game {
+public:
+    std::vector<Player> players;
+    std::vector<std::string> specialRoles = {"Φανερός Δολοφόνος", "Κρυφός Δολοφόνος", "Γιατρός", "Αστυνομικός",
+                                             "Αλεξίσφαιρο", "Τρέλα", "Ερωτευμένος", "Καμικάζι", "Θείος Παράνομος",
+                                             "Έλληνας", "Αλβανός"};
+    std::string currentPhase;
+
+    Game(std::vector<Player>& players) : players(players), currentPhase("night") {
+        assignRoles();
+    }
+
+    void assignRoles() {
+        if (players.size() < specialRoles.size()) {
+            std::cerr << "Σφάλμα: Ο αριθμός των παικτών πρέπει να είναι τουλάχιστον ίσος με τους ειδικούς ρόλους (" 
+                      << specialRoles.size() << ")." << std::endl;
+            exit(1);
+        }
+
+        std::vector<std::string> roles(players.size() - specialRoles.size(), "Πολίτης");
+        roles.insert(roles.end(), specialRoles.begin(), specialRoles.end());
+        std::random_shuffle(roles.begin(), roles.end());
+
+        for (size_t i = 0; i < players.size(); ++i) {
+            players[i].role = roles[i];
+        }
+        std::cout << "Οι ρόλοι έχουν αποδοθεί!" << std::endl;
+    }
+
+    void startGame() {
+        while (true) {
+            if (currentPhase == "night") {
+                nightPhase();
+            } else {
+                dayPhase();
+            }
+        }
+    }
+
+    void nightPhase() {
+        std::cout << "Νύχτα!" << std::endl;
+        for (auto& player : players) {
+            if (player.alive) {
+                std::cout << player.name << " - Δράση" << std::endl;
+                // Διαδραστική επιλογή δράσης
+                std::string action;
+                std::cout << "Διαλέξτε δράση για τον/την " << player.name << " (π.χ. \"δολοφονία\", \"προστασία\"): ";
+                std::cin >> action;
+                std::cout << player.name << " εκτέλεσε δράση: " << action << std::endl;
+            }
+        }
+        changePhase();
+    }
+
+    void dayPhase() {
+        std::cout << "Μέρα!" << std::endl;
+        for (auto& player : players) {
+            if (player.alive) {
+                std::cout << "Ψήφος για " << player.name << std::endl;
+                // Διαδραστική επιλογή ψήφου
+                std::string vote;
+                std::cout << "Διαλέξτε σε ποιον/ποια θα ψηφίσει ο/η " << player.name << ": ";
+                std::cin >> vote;
+                std::cout << player.name << " ψήφισε: " << vote << std::endl;
+            }
+        }
+        changePhase();
+    }
+
+    void changePhase() {
+        std::cout << "Θέλετε να αλλάξετε φάση; (μέρα -> νύχτα ή νύχτα -> μέρα) [y/n]: ";
+        char response;
+        std::cin >> response;
+
+        if (response == 'y' || response == 'Y') {
+            currentPhase = (currentPhase == "night") ? "day" : "night";
+        } else {
+            std::cout << "Η φάση παραμένει: " << currentPhase << std::endl;
+        }
+    }
+
+    void checkGameStatus() {
+        int aliveCount = 0;
+        for (auto& player : players) {
+            if (player.alive) {
+                ++aliveCount;
+            }
+        }
+        if (aliveCount <= 1) {
+            endGame();
+        }
+    }
+
+    void endGame() {
+        std::cout << "Το παιχνίδι τελείωσε!" << std::endl;
+        std::vector<std::string> remainingRoles;
+        for (auto& player : players) {
+            if (player.alive) {
+                remainingRoles.push_back(player.role);
+            }
+        }
+
+        if (std::find(remainingRoles.begin(), remainingRoles.end(), "Φανερός Δολοφόνος") != remainingRoles.end() ||
+            std::find(remainingRoles.begin(), remainingRoles.end(), "Κρυφός Δολοφόνος") != remainingRoles.end()) {
+            std::cout << "Οι Κακοί Νίκησαν!" << std::endl;
+        } else if (std::find(remainingRoles.begin(), remainingRoles.end(), "Τρέλα") != remainingRoles.end()) {
+            std::cout << "Η Τρέλα Νίκησε!" << std::endl;
+        } else if (std::find(remainingRoles.begin(), remainingRoles.end(), "Έλληνας") != remainingRoles.end()) {
+            std::cout << "Ο Έλληνας Νίκησε!" << std::endl;
+        } else {
+            std::cout << "Οι Καλοί Νίκησαν!" << std::endl;
+        }
+        exit(0); // Τερματισμός του παιχνιδιού
+    }
+};
+
+int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(65001); // Ορίζει την κωδικοποίηση της κονσόλας σε UTF-8 για Windows
+#endif
+
+    std::vector<Player> players;
+    int numPlayers;
+
+    std::cout << "Πόσοι παίκτες; ";
+    std::cin >> numPlayers;
+
+    if (numPlayers < 11) { // Ελάχιστος αριθμός παικτών: 11
+        std::cerr << "Σφάλμα: Πρέπει να υπάρχουν τουλάχιστον 11 παίκτες για να ξεκινήσει το παιχνίδι." << std::endl;
+        return 1;
+    }
+
+    for (int i = 0; i < numPlayers; ++i) {
+        std::string playerName;
+        std::cout << "Όνομα παίκτη " << (i + 1) << ": ";
+        std::cin >> playerName;
+        players.push_back(Player(playerName));
+    }
+
+    Game game(players);
+    game.startGame();
+
+    return 0;
+}
