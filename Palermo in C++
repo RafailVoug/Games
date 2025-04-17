@@ -1,120 +1,190 @@
 #include <iostream>
-#include <windows.h>
+#include <vector>
 #include <map>
-#include <string>
+#include <algorithm>
 #include <random>
 #include <ctime>
-#include <algorithm> // Απαραίτητο για std::shuffle
-\
+#include <set>
+#include <locale>
+#include <windows.h>
 
-class MafiaGame {
-public:
-    MafiaGame();
-    void startGame();
-    void nextPhase();
-
-private:
-    enum Phase { NIGHT, DAY };
-    Phase currentPhase;
-    
-    struct Player {
-        std::string name;
-        std::string role;
-        bool alive = true;
-    };
-    
-    std::vector<Player> players;
-    std::map<std::string, int> roleCount;
-    
-    void setupGame();
-    void assignRoles();
-    void handleNightPhase();
-    void handleDayPhase();
-    void voteElimination();
-    int getRandomAlivePlayer();
+struct Player {
+    std::string name;
+    std::string role;
+    bool alive = true;
 };
 
-MafiaGame::MafiaGame() {
-    std::cout << "Καλώς ήρθατε στο Mafia Game!\n";
+std::vector<Player> players;
+int maxMafia = 2;
+int maxCops = 2;
+int numCitizens;
+int totalPlayers;
+
+std::random_device rd;
+std::mt19937 rng(rd());
+
+bool isNameUnique(const std::string& name) {
+    for (const auto& p : players)
+        if (p.name == name)
+            return false;
+    return true;
 }
 
-void MafiaGame::startGame() {
-    setupGame();
-    assignRoles();
-    std::cout << "Το παιχνίδι ξεκινά! Φάση: Νύχτα\n";
-    currentPhase = NIGHT;
-}
+void setupPlayers() {
+    std::cout << "Πόσοι παίκτες θα παίξουν; ";
+    std::cin >> totalPlayers;
+    while (totalPlayers < (maxMafia + maxCops + 1)) {
+        std::cout << "Χρειάζονται τουλάχιστον " << (maxMafia + maxCops + 1) << " παίκτες.\nΔώσε ξανά: ";
+        std::cin >> totalPlayers;
+    }
 
-void MafiaGame::setupGame() {
     players.clear();
-    roleCount = { {"Δολοφόνος", 1}, {"Αστυνομικός", 1}, {"Πολίτης", 3} };
-    
-    for (int i = 1; i <= 5; ++i) {
-        players.push_back({"Παίκτης " + std::to_string(i), "", true});
+    std::set<std::string> usedNames;
+    std::string name;
+
+    std::cin.ignore(); // Clear input buffer
+    for (int i = 0; i < totalPlayers; ++i) {
+        std::cout << "Όνομα παίκτη " << i + 1 << ": ";
+        std::getline(std::cin, name);
+        while (!isNameUnique(name)) {
+            std::cout << "Το όνομα υπάρχει ήδη. Δώσε άλλο: ";
+            std::getline(std::cin, name);
+        }
+        players.push_back({name, "", true});
+    }
+
+    numCitizens = totalPlayers - maxMafia - maxCops;
+}
+
+void assignRoles() {
+    std::vector<std::string> roles;
+
+    for (int i = 0; i < maxMafia; ++i) roles.push_back("Δολοφόνος");
+    for (int i = 0; i < maxCops; ++i) roles.push_back("Αστυνομικός");
+    for (int i = 0; i < numCitizens; ++i) roles.push_back("Πολίτης");
+
+    std::shuffle(roles.begin(), roles.end(), rng);
+
+    for (size_t i = 0; i < players.size(); ++i) {
+        players[i].role = roles[i];
+    }
+
+    std::cout << "\nΟι ρόλοι ανατέθηκαν. Ο καθένας βλέπει μυστικά τον ρόλο του:\n";
+    for (const auto& p : players) {
+        std::cout << p.name << ", πάτα Enter για να δεις τον ρόλο σου...";
+        std::cin.get();
+        std::cout << "Ο ρόλος σου είναι: " << p.role << "\n";
+        std::cout << "(πάτα Enter για να συνεχίσει ο επόμενος)\n";
+        std::cin.get();
+        std::system("clear || cls");
     }
 }
 
-void MafiaGame::assignRoles() {
-    std::vector<std::string> availableRoles;
-    for (const auto &pair : roleCount) {
-        for (int i = 0; i < pair.second; ++i) {
-            availableRoles.push_back(pair.first);
+int findPlayerIndexByName(const std::string& name) {
+    for (size_t i = 0; i < players.size(); ++i) {
+        if (players[i].name == name && players[i].alive)
+            return i;
+    }
+    return -1;
+}
+
+void nightPhase() {
+    std::cout << "\n🌙 Νύχτα πέφτει στο χωριό...\n";
+    std::vector<std::string> mafiaNames;
+    for (const auto& p : players)
+        if (p.alive && p.role == "Δολοφόνος")
+            mafiaNames.push_back(p.name);
+
+    std::cout << "Οι δολοφόνοι (" << mafiaNames.size() << ") αποφασίζουν ποιον να σκοτώσουν:\n";
+    for (const auto& name : mafiaNames) {
+        std::string victim;
+        int victimIndex = -1;
+        do {
+            std::cout << name << ", ποιον θες να σκοτώσεις; ";
+            std::getline(std::cin, victim);
+            victimIndex = findPlayerIndexByName(victim);
+        } while (victimIndex == -1 || players[victimIndex].role == "Δολοφόνος" || !players[victimIndex].alive);
+
+        players[victimIndex].alive = false;
+        std::cout << "Ο παίκτης " << players[victimIndex].name << " σκοτώθηκε μέσα στη νύχτα!\n";
+        break; // μόνο ένας σκοτώνεται
+    }
+}
+
+void dayPhase() {
+    std::cout << "\n☀️ Μέρα ξημέρωσε στο χωριό...\nΟι παίκτες συζητούν και ψηφίζουν ποιον να διώξουν:\n";
+    std::map<std::string, int> voteCounts;
+
+    for (const auto& p : players) {
+        if (!p.alive) continue;
+        std::string vote;
+        int voteIndex = -1;
+        do {
+            std::cout << p.name << ", ποιον ψηφίζεις; ";
+            std::getline(std::cin, vote);
+            voteIndex = findPlayerIndexByName(vote);
+        } while (voteIndex == -1 || !players[voteIndex].alive || vote == p.name);
+
+        voteCounts[vote]++;
+    }
+
+    // Βρες τον παίκτη με τις περισσότερες ψήφους
+    std::string eliminated = "";
+    int maxVotes = 0;
+    for (const auto& pair : voteCounts) {
+        if (pair.second > maxVotes) {
+            maxVotes = pair.second;
+            eliminated = pair.first;
         }
     }
-    
-    std::shuffle(availableRoles.begin(), availableRoles.end(), std::default_random_engine(time(nullptr)));
- 
-    for (size_t i = 0; i < players.size(); ++i) {
-        players[i].role = availableRoles[i];
-    }
-}
 
-void MafiaGame::nextPhase() {
-    if (currentPhase == NIGHT) {
-        handleNightPhase();
+    if (eliminated != "") {
+        int idx = findPlayerIndexByName(eliminated);
+        players[idx].alive = false;
+        std::cout << "\nΟ παίκτης " << eliminated << " αποχώρησε από το παιχνίδι!\n";
     } else {
-        handleDayPhase();
+        std::cout << "Ισοψηφία! Κανείς δεν φεύγει σήμερα.\n";
     }
 }
 
-void MafiaGame::handleNightPhase() {
-    int victimIndex = getRandomAlivePlayer();
-    players[victimIndex].alive = false;
-    std::cout << "Νύχτα: Ο δολοφόνος επιτέθηκε σε " << players[victimIndex].name << "!\n";
-    currentPhase = DAY;
-}
-
-void MafiaGame::handleDayPhase() {
-    voteElimination();
-    std::cout << "Μέρα: Οι παίκτες συζητούν και ψηφίζουν!\n";
-    currentPhase = NIGHT;
-}
-
-void MafiaGame::voteElimination() {
-    int eliminatedIndex = getRandomAlivePlayer();
-    players[eliminatedIndex].alive = false;
-    std::cout << "Οι παίκτες αποφάσισαν να εξολοθρεύσουν τον " << players[eliminatedIndex].name << "!\n";
-}
-
-int MafiaGame::getRandomAlivePlayer() {
-    std::vector<int> alivePlayers;
-    for (size_t i = 0; i < players.size(); ++i) {
-        if (players[i].alive) {
-            alivePlayers.push_back(i);
-        }
+bool checkVictory() {
+    int mafia = 0, others = 0;
+    for (const auto& p : players) {
+        if (!p.alive) continue;
+        if (p.role == "Δολοφόνος") mafia++;
+        else others++;
     }
-    return alivePlayers[rand() % alivePlayers.size()];
+
+    if (mafia == 0) {
+        std::cout << "\n🎉 Οι πολίτες κέρδισαν! Οι δολοφόνοι εξοντώθηκαν!\n";
+        return true;
+    }
+    if (mafia >= others) {
+        std::cout << "\n💀 Οι δολοφόνοι κέρδισαν! Επικράτησαν στο χωριό!\n";
+        return true;
+    }
+    return false;
 }
 
 int main() {
-    // Ρύθμιση UTF-8 στην κονσόλα
+    // Θέτει την κονσόλα σε UTF-8 mode
     SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8); // Για σωστή εισαγωγή string από cin
 
-    std::cout << "Καλώς ήρθατε στο Mafia Game!\n";
-    std::cout << "Το παιχνίδι ξεκινά!\n";
 
-    // Περιμένει να πατήσει Enter ο χρήστης
-    system("pause");
+    std::srand(time(nullptr));
+    std::cout << "🎭 Καλώς ήρθες στο διαδραστικό παιχνίδι Μάφια!\n";
+    setupPlayers();
+    assignRoles();
 
+    bool gameOver = false;
+    while (!gameOver) {
+        nightPhase();
+        if ((gameOver = checkVictory())) break;
+        dayPhase();
+        if ((gameOver = checkVictory())) break;
+    }
+
+    std::cout << "\n🎮 Τέλος παιχνιδιού!\n";
     return 0;
 }
