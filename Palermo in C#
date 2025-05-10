@@ -1,0 +1,173 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+class Player {
+    public string Name { get; set; }
+    public string Role { get; set; }
+    public bool Alive { get; set; } = true;
+}
+
+class Programmm {
+    static List<Player> players = new List<Player>();
+    static int maxMafia = 2;
+    static int maxCops = 2;
+    static int numCitizens;
+    static int totalPlayers;
+    static Random rng = new Random();
+
+    static bool IsNameUnique(string name) {
+        return !players.Any(p => p.Name == name);
+    }
+
+    static void SetupPlayers() {
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
+
+        Console.Write("Πόσοι παίκτες θα παίξουν; ");
+        totalPlayers = int.Parse(Console.ReadLine());
+        while (totalPlayers < (maxMafia + maxCops + 1)) {
+            Console.WriteLine($"Χρειάζονται τουλάχιστον {maxMafia + maxCops + 1} παίκτες.");
+            Console.Write("Δώσε ξανά: ");
+            totalPlayers = int.Parse(Console.ReadLine());
+        }
+
+        players.Clear();
+        for (int i = 0; i < totalPlayers; i++) {
+            Console.Write($"Όνομα παίκτη {i + 1}: ");
+            string name = Console.ReadLine();
+            while (!IsNameUnique(name)) {
+                Console.Write("Το όνομα υπάρχει ήδη. Δώσε άλλο: ");
+                name = Console.ReadLine();
+            }
+            players.Add(new Player { Name = name });
+        }
+
+        numCitizens = totalPlayers - maxMafia - maxCops;
+    }
+
+    static void AssignRoles() {
+        List<string> roles = new List<string>();
+        roles.AddRange(Enumerable.Repeat("Δολοφόνος", maxMafia));
+        roles.AddRange(Enumerable.Repeat("Αστυνομικός", maxCops));
+        roles.AddRange(Enumerable.Repeat("Πολίτης", numCitizens));
+
+        roles = roles.OrderBy(_ => rng.Next()).ToList();
+
+        for (int i = 0; i < players.Count; i++) {
+            players[i].Role = roles[i];
+        }
+
+        Console.WriteLine("\nΟι ρόλοι ανατέθηκαν. Ο καθένας βλέπει μυστικά τον ρόλο του:");
+        foreach (var p in players) {
+            Console.WriteLine($"{p.Name}, πάτα Enter για να δεις τον ρόλο σου...");
+            Console.ReadLine();
+            Console.WriteLine($"Ο ρόλος σου είναι: {p.Role}");
+            Console.WriteLine("(πάτα Enter για να συνεχίσει ο επόμενος)");
+            Console.ReadLine();
+            Console.Clear();
+        }
+    }
+
+    static int FindPlayerIndexByName(string name) {
+        for (int i = 0; i < players.Count; i++) {
+            if (players[i].Name == name && players[i].Alive)
+                return i;
+        }
+        return -1;
+    }
+
+    static void NightPhase() {
+        Console.WriteLine("\n🌙 Νύχτα πέφτει στο χωριό...");
+        var mafiaNames = players.Where(p => p.Alive && p.Role == "Δολοφόνος").Select(p => p.Name).ToList();
+
+        Console.WriteLine($"Οι δολοφόνοι ({mafiaNames.Count}) αποφασίζουν ποιον να σκοτώσουν:");
+        foreach (var name in mafiaNames) {
+            string victim;
+            int victimIndex;
+            do {
+                Console.Write($"{name}, ποιον θες να σκοτώσεις; ");
+                victim = Console.ReadLine();
+                victimIndex = FindPlayerIndexByName(victim);
+            } while (victimIndex == -1 || players[victimIndex].Role == "Δολοφόνος" || !players[victimIndex].Alive);
+
+            players[victimIndex].Alive = false;
+            Console.WriteLine($"Ο παίκτης {players[victimIndex].Name} σκοτώθηκε μέσα στη νύχτα!");
+            break; // μόνο ένας σκοτώνεται
+        }
+    }
+
+    static void DayPhase() {
+        Console.WriteLine("\n☀️ Μέρα ξημέρωσε στο χωριό...\nΟι παίκτες συζητούν και ψηφίζουν ποιον να διώξουν:");
+        var voteCounts = new Dictionary<string, int>();
+
+        foreach (var p in players) {
+            if (!p.Alive) continue;
+            string vote;
+            int voteIndex;
+            do {
+                Console.Write($"{p.Name}, ποιον ψηφίζεις; ");
+                vote = Console.ReadLine();
+                voteIndex = FindPlayerIndexByName(vote);
+            } while (voteIndex == -1 || !players[voteIndex].Alive || vote == p.Name);
+
+            if (!voteCounts.ContainsKey(vote))
+                voteCounts[vote] = 0;
+            voteCounts[vote]++;
+        }
+
+        var eliminated = "";
+        int maxVotes = 0;
+        foreach (var pair in voteCounts) {
+            if (pair.Value > maxVotes) {
+                maxVotes = pair.Value;
+                eliminated = pair.Key;
+            }
+        }
+
+        if (eliminated != "") {
+            int idx = FindPlayerIndexByName(eliminated);
+            players[idx].Alive = false;
+            Console.WriteLine($"\nΟ παίκτης {eliminated} αποχώρησε από το παιχνίδι!");
+        } else {
+            Console.WriteLine("Ισοψηφία! Κανείς δεν φεύγει σήμερα.");
+        }
+    }
+
+    static bool CheckVictory() {
+        int mafia = 0, others = 0;
+        foreach (var p in players) {
+            if (!p.Alive) continue;
+            if (p.Role == "Δολοφόνος") mafia++;
+            else others++;
+        }
+
+        if (mafia == 0) {
+            Console.WriteLine("\n🎉 Οι πολίτες κέρδισαν! Οι δολοφόνοι εξοντώθηκαν!");
+            return true;
+        }
+        if (mafia >= others) {
+            Console.WriteLine("\n💀 Οι δολοφόνοι κέρδισαν! Επικράτησαν στο χωριό!");
+            return true;
+        }
+        return false;
+    }
+
+    static void Main() {
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
+        Console.InputEncoding = System.Text.Encoding.UTF8;
+
+        Console.WriteLine("🎭 Καλώς ήρθες στο διαδραστικό παιχνίδι Μάφια!");
+        SetupPlayers();
+        AssignRoles();
+
+        bool gameOver = false;
+        while (!gameOver) {
+            NightPhase();
+            if ((gameOver = CheckVictory())) break;
+            DayPhase();
+            if ((gameOver = CheckVictory())) break;
+        }
+
+        Console.WriteLine("\n🎮 Τέλος παιχνιδιού!");
+    }
+}
